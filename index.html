@@ -575,7 +575,7 @@
           <button type="button" class="btn-primary" id="gather-ingredients-btn">Review ingredients for this week</button>
         </div>
         <p class="muted" style="margin:0.75rem 0 0;font-size:0.82rem;">
-          Assign recipes by day. When you are ready, gather ingredients, remove what you already have at home, then save to your shopping list.
+          Plan runs Sunday through Saturday (handy if you shop on Sunday). When you are ready, gather ingredients, remove what you already have at home, then save to your shopping list.
         </p>
       </div>
 
@@ -682,19 +682,19 @@
       const STORAGE_V2 = "personal-shopping-app-v2";
       const STORAGE_V1 = "personal-shopping-list-v1";
 
-      const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
       /** @typedef {{ id: string, name: string, ingredients: string[], steps: string[] | null, createdAt: number }} Recipe */
       /** @typedef {{ id: string, title: string, done: boolean, createdAt: number }} ShopItem */
 
       /** @type {Recipe[]} */
       let recipes = [];
-      /** @type {{ [weekStart: string]: { days: string[][] } }} */
+      /** Week plan keys: local Sunday YYYY-MM-DD. @type {{ [weekStart: string]: { days: string[][] } }} */
       let weekPlans = {};
       /** @type {ShopItem[]} */
       let shopItems = [];
-      /** @type {string} YYYY-MM-DD Monday local */
-      let viewingWeekStart = mondayKey(new Date());
+      /** @type {string} YYYY-MM-DD Sunday local (first day of the plan week) */
+      let viewingWeekStart = sundayKey(new Date());
       /** @type {string[] | null} */
       let reviewLines = null;
 
@@ -773,12 +773,42 @@
         return new Date(p[0], p[1] - 1, p[2]);
       }
 
-      function mondayKey(d) {
+      function sundayKey(d) {
         const dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         const dow = dt.getDay();
-        const delta = dow === 0 ? -6 : 1 - dow;
-        dt.setDate(dt.getDate() + delta);
+        dt.setDate(dt.getDate() - dow);
         return localYMD(dt);
+      }
+
+      /** Old plans used Monday YMD as key and Mon–Sun column order; convert to Sunday key + Sun–Sat order. */
+      function migrateWeekPlansMondayKeysToSunday(wp) {
+        const out = {};
+        Object.keys(wp).forEach(function (k) {
+          const plan = wp[k];
+          const days = Array.isArray(plan.days) ? plan.days.slice() : [];
+          while (days.length < 7) days.push([]);
+          if (days.length > 7) days.length = 7;
+          const sunKey = addDaysYMD(k, -1);
+          const newDays = [
+            (days[6] || []).slice(),
+            (days[0] || []).slice(),
+            (days[1] || []).slice(),
+            (days[2] || []).slice(),
+            (days[3] || []).slice(),
+            (days[4] || []).slice(),
+            (days[5] || []).slice(),
+          ];
+          if (!out[sunKey]) {
+            out[sunKey] = { days: newDays.map(function (x) {
+              return x.slice();
+            }) };
+          } else {
+            for (var i = 0; i < 7; i++) {
+              out[sunKey].days[i] = (out[sunKey].days[i] || []).concat(newDays[i] || []);
+            }
+          }
+        });
+        return out;
       }
 
       function addDaysYMD(ymd, days) {
@@ -787,8 +817,8 @@
         return localYMD(dt);
       }
 
-      function formatRangeLabel(mondayYmd) {
-        const start = parseYMD(mondayYmd);
+      function formatRangeLabel(sundayYmd) {
+        const start = parseYMD(sundayYmd);
         const end = new Date(start);
         end.setDate(end.getDate() + 6);
         const o = { month: "short", day: "numeric" };
@@ -803,6 +833,12 @@
             recipes = Array.isArray(data.recipes) ? normalizeRecipes(data.recipes) : [];
             weekPlans = data.weekPlans && typeof data.weekPlans === "object" ? data.weekPlans : {};
             shopItems = Array.isArray(data.shopItems) ? normalizeShop(data.shopItems) : [];
+            if (data.weekStartsSunday !== true) {
+              if (Object.keys(weekPlans).length > 0) {
+                weekPlans = migrateWeekPlansMondayKeysToSunday(weekPlans);
+              }
+              saveAll();
+            }
             return;
           }
         } catch (e) {
@@ -880,6 +916,7 @@
               recipes: recipes,
               weekPlans: weekPlans,
               shopItems: shopItems,
+              weekStartsSunday: true,
             })
           );
         } catch (e) {
@@ -1361,7 +1398,7 @@
         renderWeek();
       });
       els.weekThis.addEventListener("click", function () {
-        viewingWeekStart = mondayKey(new Date());
+        viewingWeekStart = sundayKey(new Date());
         reviewLines = null;
         renderWeek();
       });
@@ -1422,6 +1459,7 @@
                 recipes: recipes,
                 weekPlans: weekPlans,
                 shopItems: shopItems,
+                weekStartsSunday: true,
               },
               null,
               2
@@ -1452,7 +1490,11 @@
           return;
         }
         recipes = normalizeRecipes(data.recipes || []);
-        weekPlans = data.weekPlans && typeof data.weekPlans === "object" ? data.weekPlans : {};
+        var wp = data.weekPlans && typeof data.weekPlans === "object" ? data.weekPlans : {};
+        if (data.weekStartsSunday !== true && Object.keys(wp).length > 0) {
+          wp = migrateWeekPlansMondayKeysToSunday(wp);
+        }
+        weekPlans = wp;
         shopItems = normalizeShop(data.shopItems || []);
         saveAll();
         renderRecipes();
