@@ -778,9 +778,14 @@
     <form method="dialog" class="dialog-inner">
       <h3>Import all data</h3>
       <p class="muted" style="margin:0 0 0.65rem;">
-        Paste JSON from an export. This replaces recipes, all week plans, and your shopping list.
+        Upload a backup JSON file, or paste the export text. This replaces recipes, all week plans, and your shopping list.
       </p>
-      <textarea id="import-text" style="min-height:160px;font-family:ui-monospace,Menlo,monospace;font-size:0.78rem;"></textarea>
+      <input type="file" id="import-file" accept="application/json,.json,text/plain" hidden />
+      <button type="button" class="btn-primary" id="import-file-btn" style="width:100%;margin-bottom:0.85rem;">
+        Choose backup file…
+      </button>
+      <p class="section-title" style="margin:0 0 0.35rem;">Or paste JSON</p>
+      <textarea id="import-text" style="min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:0.78rem;"></textarea>
       <div class="dialog-actions">
         <button type="submit" value="cancel" class="btn-ghost">Cancel</button>
         <button type="submit" value="ok" class="btn-primary">Replace data</button>
@@ -859,6 +864,8 @@
         importDataBtn: document.getElementById("import-data-btn"),
         importDialog: document.getElementById("import-dialog"),
         importText: document.getElementById("import-text"),
+        importFile: document.getElementById("import-file"),
+        importFileBtn: document.getElementById("import-file-btn"),
         recipeDialog: document.getElementById("recipe-dialog"),
         recipeCancelBtn: document.getElementById("recipe-cancel-btn"),
         recipeSaveBtn: document.getElementById("recipe-save-btn"),
@@ -1848,20 +1855,7 @@
         URL.revokeObjectURL(url);
       });
 
-      els.importDataBtn.addEventListener("click", function () {
-        els.importText.value = "";
-        els.importDialog.showModal();
-      });
-
-      els.importDialog.addEventListener("close", function () {
-        if (els.importDialog.returnValue !== "ok") return;
-        let data;
-        try {
-          data = JSON.parse(els.importText.value);
-        } catch {
-          window.alert("Invalid JSON.");
-          return;
-        }
+      function applyImportedData(data) {
         recipes = normalizeRecipes(data.recipes || []);
         var wp = data.weekPlans && typeof data.weekPlans === "object" ? data.weekPlans : {};
         if (data.weekStartsSunday !== true && Object.keys(wp).length > 0) {
@@ -1873,6 +1867,57 @@
         renderRecipes();
         renderWeek();
         renderShop();
+      }
+
+      function parseImportJson(raw) {
+        let data;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          window.alert("Invalid JSON.");
+          return null;
+        }
+        if (!data || typeof data !== "object") {
+          window.alert("That file does not look like a Kitchen & shop backup.");
+          return null;
+        }
+        return data;
+      }
+
+      els.importDataBtn.addEventListener("click", function () {
+        els.importText.value = "";
+        els.importFile.value = "";
+        els.importDialog.showModal();
+      });
+
+      els.importFileBtn.addEventListener("click", function () {
+        els.importFile.click();
+      });
+
+      els.importFile.addEventListener("change", function () {
+        const file = els.importFile.files && els.importFile.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function () {
+          const data = parseImportJson(String(reader.result || ""));
+          els.importFile.value = "";
+          if (!data) return;
+          if (!window.confirm("Replace recipes, week plans, and shopping list with this backup?")) return;
+          applyImportedData(data);
+          els.importDialog.close();
+        };
+        reader.onerror = function () {
+          window.alert("Could not read that file.");
+          els.importFile.value = "";
+        };
+        reader.readAsText(file);
+      });
+
+      els.importDialog.addEventListener("close", function () {
+        if (els.importDialog.returnValue !== "ok") return;
+        const data = parseImportJson(els.importText.value);
+        if (!data) return;
+        applyImportedData(data);
       });
 
       loadAll();
