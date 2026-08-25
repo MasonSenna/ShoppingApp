@@ -244,6 +244,77 @@
       color: var(--muted);
     }
 
+    .recipe-card.recently-planned {
+      border-color: rgba(248, 113, 113, 0.55);
+    }
+
+    .recipe-card.recently-planned strong {
+      color: var(--danger);
+    }
+
+    .pill.recently-planned {
+      border-color: rgba(248, 113, 113, 0.45);
+      background: rgba(248, 113, 113, 0.12);
+    }
+
+    .pill.recently-planned span {
+      color: var(--danger);
+    }
+
+    .ingredient-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .ingredient-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+    }
+
+    .ingredient-row input[type="text"] {
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .ingredient-row select {
+      width: auto;
+      min-width: 7.5rem;
+      font-size: 0.85rem;
+      padding: 0.5rem 0.55rem;
+    }
+
+    .ingredient-row .ing-remove {
+      padding: 0.35rem 0.5rem;
+      font-size: 0.75rem;
+      background: transparent;
+      color: var(--danger);
+      border: 1px solid rgba(248, 113, 113, 0.35);
+    }
+
+    .shop-category {
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0.85rem 0 0.35rem;
+    }
+
+    .shop-category:first-child {
+      margin-top: 0;
+    }
+
+    .cat-badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-left: 0.35rem;
+    }
+
     .week-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -358,6 +429,25 @@
       margin-bottom: 0.35rem;
       background: var(--bg);
       font-size: 0.9rem;
+    }
+
+    .review-list li.review-cat-heading {
+      display: block;
+      border: none;
+      background: transparent;
+      padding: 0.65rem 0.15rem 0.2rem;
+      margin: 0.35rem 0 0.15rem;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .review-list li.review-cat-heading:first-child {
+      margin-top: 0;
+      padding-top: 0.15rem;
     }
 
     .review-list li button {
@@ -504,7 +594,7 @@
       background: var(--surface);
       color: var(--text);
       padding: 0;
-      max-width: min(94vw, 440px);
+      max-width: min(94vw, 520px);
       width: 100%;
       box-shadow: var(--shadow);
     }
@@ -589,7 +679,7 @@
           <button type="button" class="btn-primary" id="gather-ingredients-btn">Review ingredients for this week</button>
         </div>
         <p class="muted" style="margin:0.75rem 0 0;font-size:0.82rem;">
-          Plan runs Sunday through Saturday (handy if you shop on Sunday). When you are ready, gather ingredients, remove what you already have at home, then save to your shopping list.
+          Plan runs Sunday through Saturday (handy if you shop on Sunday). Meals from the previous two weeks appear in red so you can spot repeats. When you are ready, gather ingredients, remove what you already have at home, then save to your shopping list.
         </p>
       </div>
 
@@ -610,6 +700,9 @@
       <div class="card">
         <form id="add-shop-form" class="form-row" autocomplete="off">
           <input type="text" id="new-shop-item" placeholder="Add an item…" maxlength="200" aria-label="New shopping item" style="flex:1;min-width:0" />
+          <select id="new-shop-category" aria-label="Item category" style="width:auto;min-width:7.5rem;font-size:0.85rem;">
+            <option value="">Category…</option>
+          </select>
           <button type="submit" class="btn-primary">Add</button>
         </form>
         <div class="form-row" style="margin-top:0.75rem;">
@@ -619,9 +712,9 @@
       </div>
       <div class="card">
         <h3 class="section-title">To get</h3>
-        <ul id="shop-list-open" class="plain-list"></ul>
+        <div id="shop-list-open"></div>
         <h3 class="section-title" style="margin-top:0.85rem;">In the bag</h3>
-        <ul id="shop-list-done" class="plain-list"></ul>
+        <div id="shop-list-done"></div>
         <p class="empty" id="shop-empty" hidden></p>
       </div>
       <div class="footer-actions">
@@ -638,9 +731,13 @@
       <label class="section-title" for="recipe-name" style="display:block;margin-top:0.5rem;">Name</label>
       <input type="text" id="recipe-name" maxlength="120" style="width:100%;margin-bottom:0.65rem" />
 
-      <label class="section-title" for="recipe-ingredients" style="display:block;">Ingredients</label>
-      <p class="muted" style="margin:0 0 0.35rem;font-size:0.8rem;">One ingredient per line.</p>
-      <textarea id="recipe-ingredients" placeholder="e.g.&#10;2 cups flour&#10;1 tsp salt"></textarea>
+      <label class="section-title" style="display:block;">Ingredients</label>
+      <p class="muted" style="margin:0 0 0.35rem;font-size:0.8rem;">Add each ingredient and optionally a category (for sorting the shopping list).</p>
+      <div id="recipe-ingredients-editor" class="ingredient-rows"></div>
+      <div class="form-row" style="margin-bottom:0.65rem;">
+        <button type="button" class="btn-ghost btn-sm" id="recipe-add-ingredient">Add ingredient</button>
+        <button type="button" class="btn-ghost btn-sm" id="recipe-paste-ingredients">Paste lines…</button>
+      </div>
 
       <div class="checkbox-row">
         <input type="checkbox" id="recipe-has-steps" />
@@ -697,9 +794,20 @@
       const STORAGE_V1 = "personal-shopping-list-v1";
 
       const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const INGREDIENT_CATEGORIES = [
+        "Veg",
+        "Meat",
+        "Dairy",
+        "Frozen",
+        "Dry Goods",
+        "Bread",
+        "Snacks",
+        "Household Goods",
+      ];
 
-      /** @typedef {{ id: string, name: string, ingredients: string[], steps: string[] | null, createdAt: number }} Recipe */
-      /** @typedef {{ id: string, title: string, done: boolean, createdAt: number }} ShopItem */
+      /** @typedef {{ text: string, category: string }} Ingredient */
+      /** @typedef {{ id: string, name: string, ingredients: Ingredient[], steps: string[] | null, createdAt: number }} Recipe */
+      /** @typedef {{ id: string, title: string, category: string, done: boolean, createdAt: number }} ShopItem */
 
       /** @type {Recipe[]} */
       let recipes = [];
@@ -709,7 +817,7 @@
       let shopItems = [];
       /** @type {string} YYYY-MM-DD Sunday local (first day of the plan week) */
       let viewingWeekStart = sundayKey(new Date());
-      /** @type {string[] | null} */
+      /** @type {{ text: string, category: string }[] | null} */
       let reviewLines = null;
 
       let editingRecipeId = null;
@@ -756,7 +864,9 @@
         recipeSaveBtn: document.getElementById("recipe-save-btn"),
         recipeDialogTitle: document.getElementById("recipe-dialog-title"),
         recipeName: document.getElementById("recipe-name"),
-        recipeIngredients: document.getElementById("recipe-ingredients"),
+        recipeIngredientsEditor: document.getElementById("recipe-ingredients-editor"),
+        recipeAddIngredient: document.getElementById("recipe-add-ingredient"),
+        recipePasteIngredients: document.getElementById("recipe-paste-ingredients"),
         recipeHasSteps: document.getElementById("recipe-has-steps"),
         recipeStepsWrap: document.getElementById("recipe-steps-wrap"),
         recipeSteps: document.getElementById("recipe-steps"),
@@ -768,6 +878,7 @@
         readSteps: document.getElementById("read-recipe-steps"),
         readEditBtn: document.getElementById("read-edit-btn"),
         readCloseBtn: document.getElementById("read-close-btn"),
+        newShopCategory: document.getElementById("new-shop-category"),
       };
 
       function uid() {
@@ -839,6 +950,71 @@
         return start.toLocaleDateString(undefined, o) + " – " + end.toLocaleDateString(undefined, o);
       }
 
+      function normalizeCategory(c) {
+        const s = String(c || "").trim();
+        return INGREDIENT_CATEGORIES.indexOf(s) >= 0 ? s : "";
+      }
+
+      function normalizeIngredient(raw) {
+        if (typeof raw === "string") {
+          const text = raw.trim().slice(0, 200);
+          return text ? { text: text, category: "" } : null;
+        }
+        if (raw && typeof raw === "object") {
+          const text = String(raw.text || raw.name || raw.title || "").trim().slice(0, 200);
+          if (!text) return null;
+          return { text: text, category: normalizeCategory(raw.category) };
+        }
+        return null;
+      }
+
+      function fillCategorySelect(selectEl, selected, blankLabel) {
+        selectEl.innerHTML = "";
+        const blank = document.createElement("option");
+        blank.value = "";
+        blank.textContent = blankLabel || "Uncategorized";
+        selectEl.appendChild(blank);
+        INGREDIENT_CATEGORIES.forEach(function (c) {
+          const o = document.createElement("option");
+          o.value = c;
+          o.textContent = c;
+          if (selected === c) o.selected = true;
+          selectEl.appendChild(o);
+        });
+      }
+
+      /** Recipe IDs planned in the two full weeks before the current calendar week. */
+      function recentlyPlannedRecipeIds() {
+        const thisSunday = sundayKey(new Date());
+        const ids = new Set();
+        [addDaysYMD(thisSunday, -7), addDaysYMD(thisSunday, -14)].forEach(function (wk) {
+          const plan = weekPlans[wk];
+          if (!plan || !Array.isArray(plan.days)) return;
+          plan.days.forEach(function (day) {
+            (day || []).forEach(function (id) {
+              ids.add(id);
+            });
+          });
+        });
+        return ids;
+      }
+
+      function categorySortKey(cat) {
+        const i = INGREDIENT_CATEGORIES.indexOf(cat);
+        return i >= 0 ? i : INGREDIENT_CATEGORIES.length;
+      }
+
+      function sortByCategory(items, textKey) {
+        const key = textKey || "text";
+        items.sort(function (a, b) {
+          const ca = categorySortKey(normalizeCategory(a.category));
+          const cb = categorySortKey(normalizeCategory(b.category));
+          if (ca !== cb) return ca - cb;
+          return String(a[key] || "").localeCompare(String(b[key] || ""));
+        });
+        return items;
+      }
+
       function loadAll() {
         try {
           const raw = localStorage.getItem(STORAGE_V2);
@@ -887,14 +1063,18 @@
             } else if (typeof x.stepsText === "string" && x.stepsText.trim()) {
               steps = linesFromText(x.stepsText);
             }
+            let ingredients = [];
+            if (Array.isArray(x.ingredients)) {
+              ingredients = x.ingredients.map(normalizeIngredient).filter(Boolean);
+            } else {
+              ingredients = linesFromText(x.ingredientsText || "")
+                .map(normalizeIngredient)
+                .filter(Boolean);
+            }
             return {
               id: typeof x.id === "string" ? x.id : uid(),
               name: String(x.name).trim().slice(0, 120),
-              ingredients: Array.isArray(x.ingredients)
-                ? x.ingredients.map(function (s) {
-                    return String(s).trim();
-                  }).filter(Boolean)
-                : linesFromText(x.ingredientsText || ""),
+              ingredients: ingredients,
               steps: steps && steps.length ? steps : null,
               createdAt: typeof x.createdAt === "number" ? x.createdAt : Date.now(),
             };
@@ -913,6 +1093,7 @@
             return {
               id: typeof x.id === "string" ? x.id : uid(),
               title: String(x.title).trim().slice(0, 200),
+              category: normalizeCategory(x.category),
               done: !!x.done,
               createdAt: typeof x.createdAt === "number" ? x.createdAt : Date.now(),
             };
@@ -974,15 +1155,29 @@
           dayIds.forEach(function (rid) {
             const r = byId.get(rid);
             if (!r) return;
-            r.ingredients.forEach(function (line) {
-              const t = line.trim();
+            r.ingredients.forEach(function (ing) {
+              const t = (ing.text || "").trim();
               if (!t) return;
               const k = t.toLowerCase();
-              if (seen.has(k)) return;
+              if (seen.has(k)) {
+                const existing = out.find(function (x) {
+                  return x.text.toLowerCase() === k;
+                });
+                if (existing && !existing.category && ing.category) {
+                  existing.category = ing.category;
+                }
+                return;
+              }
               seen.add(k);
-              out.push(t);
+              out.push({ text: t, category: normalizeCategory(ing.category) });
             });
           });
+        });
+        out.sort(function (a, b) {
+          const ca = categorySortKey(a.category);
+          const cb = categorySortKey(b.category);
+          if (ca !== cb) return ca - cb;
+          return a.text.localeCompare(b.text);
         });
         return out;
       }
@@ -1013,6 +1208,7 @@
 
       function renderRecipes() {
         const q = els.recipeFilter.value.trim().toLowerCase();
+        const recent = recentlyPlannedRecipeIds();
         els.recipeList.innerHTML = "";
         const list = recipes
           .filter(function (r) {
@@ -1024,12 +1220,14 @@
         list.forEach(function (r) {
           const b = document.createElement("button");
           b.type = "button";
-          b.className = "recipe-card";
+          b.className = "recipe-card" + (recent.has(r.id) ? " recently-planned" : "");
           const ing = r.ingredients.length;
           const st = r.steps && r.steps.length ? " · with steps" : "";
+          const recentLabel = recent.has(r.id) ? " · in last 2 weeks' plans" : "";
           b.innerHTML = "<strong></strong><span></span>";
           b.querySelector("strong").textContent = r.name;
-          b.querySelector("span").textContent = ing + " ingredient" + (ing === 1 ? "" : "s") + st;
+          b.querySelector("span").textContent =
+            ing + " ingredient" + (ing === 1 ? "" : "s") + st + recentLabel;
           b.addEventListener("click", function () {
             openReadRecipe(r.id);
           });
@@ -1044,10 +1242,21 @@
         });
         if (!r) return;
         els.readName.textContent = r.name;
+        if (recentlyPlannedRecipeIds().has(r.id)) {
+          els.readName.style.color = "var(--danger)";
+        } else {
+          els.readName.style.color = "";
+        }
         els.readIngs.innerHTML = "";
-        r.ingredients.forEach(function (line) {
+        r.ingredients.forEach(function (ing) {
           const li = document.createElement("li");
-          li.textContent = line;
+          li.textContent = ing.text;
+          if (ing.category) {
+            const badge = document.createElement("span");
+            badge.className = "cat-badge";
+            badge.textContent = "(" + ing.category + ")";
+            li.appendChild(badge);
+          }
           els.readIngs.appendChild(li);
         });
         if (r.steps && r.steps.length) {
@@ -1071,14 +1280,64 @@
         els.readDialog.showModal();
       }
 
+      function addIngredientRow(text, category) {
+        const row = document.createElement("div");
+        row.className = "ingredient-row";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.maxLength = 200;
+        input.placeholder = "Ingredient";
+        input.value = text || "";
+        const sel = document.createElement("select");
+        sel.setAttribute("aria-label", "Category");
+        fillCategorySelect(sel, category || "", "Uncategorized");
+        const rm = document.createElement("button");
+        rm.type = "button";
+        rm.className = "ing-remove";
+        rm.textContent = "×";
+        rm.setAttribute("aria-label", "Remove ingredient");
+        rm.addEventListener("click", function () {
+          row.remove();
+          if (!els.recipeIngredientsEditor.querySelector(".ingredient-row")) {
+            addIngredientRow("", "");
+          }
+        });
+        row.appendChild(input);
+        row.appendChild(sel);
+        row.appendChild(rm);
+        els.recipeIngredientsEditor.appendChild(row);
+        return input;
+      }
+
+      function clearIngredientEditor() {
+        els.recipeIngredientsEditor.innerHTML = "";
+      }
+
+      function readIngredientRows() {
+        const rows = els.recipeIngredientsEditor.querySelectorAll(".ingredient-row");
+        const out = [];
+        rows.forEach(function (row) {
+          const input = row.querySelector('input[type="text"]');
+          const sel = row.querySelector("select");
+          const text = (input && input.value ? input.value : "").trim().slice(0, 200);
+          if (!text) return;
+          out.push({
+            text: text,
+            category: normalizeCategory(sel ? sel.value : ""),
+          });
+        });
+        return out;
+      }
+
       function openRecipeEditor(id) {
         editingRecipeId = id;
         const isNew = !id;
         els.recipeDialogTitle.textContent = isNew ? "New recipe" : "Edit recipe";
         els.recipeDelete.hidden = isNew;
+        clearIngredientEditor();
         if (isNew) {
           els.recipeName.value = "";
-          els.recipeIngredients.value = "";
+          addIngredientRow("", "");
           els.recipeHasSteps.checked = false;
           els.recipeSteps.value = "";
         } else {
@@ -1087,7 +1346,13 @@
           });
           if (!r) return;
           els.recipeName.value = r.name;
-          els.recipeIngredients.value = r.ingredients.join("\n");
+          if (r.ingredients.length) {
+            r.ingredients.forEach(function (ing) {
+              addIngredientRow(ing.text, ing.category);
+            });
+          } else {
+            addIngredientRow("", "");
+          }
           const has = !!(r.steps && r.steps.length);
           els.recipeHasSteps.checked = has;
           els.recipeSteps.value = has && r.steps ? r.steps.join("\n") : "";
@@ -1104,11 +1369,9 @@
 
       function saveRecipeFromForm() {
         const name = els.recipeName.value.trim().slice(0, 120);
-        const ingredients = linesFromText(els.recipeIngredients.value).map(function (l) {
-          return l.slice(0, 200);
-        });
+        const ingredients = readIngredientRows();
         if (!name || !ingredients.length) {
-          window.alert("Name and at least one ingredient line are required.");
+          window.alert("Name and at least one ingredient are required.");
           return false;
         }
         let steps = null;
@@ -1169,6 +1432,7 @@
         els.weekRange.textContent = DAY_NAMES[0] + " " + localYMD(start) + " → " + DAY_NAMES[6] + " " + addDaysYMD(wk, 6);
 
         const plan = getWeekPlan(wk);
+        const recent = recentlyPlannedRecipeIds();
         els.weekDays.innerHTML = "";
 
         for (let i = 0; i < 7; i++) {
@@ -1195,7 +1459,7 @@
             });
             const label = r ? r.name : "(missing recipe)";
             const pill = document.createElement("div");
-            pill.className = "pill";
+            pill.className = "pill" + (recent.has(rid) ? " recently-planned" : "");
             const span = document.createElement("span");
             span.textContent = label;
             const rm = document.createElement("button");
@@ -1229,7 +1493,8 @@
             .forEach(function (r) {
               const o = document.createElement("option");
               o.value = r.id;
-              o.textContent = r.name;
+              o.textContent = recent.has(r.id) ? r.name + " (recent)" : r.name;
+              if (recent.has(r.id)) o.style.color = "#f87171";
               sel.appendChild(o);
             });
           sel.addEventListener("change", function () {
@@ -1252,11 +1517,35 @@
 
       function renderReviewList() {
         els.reviewList.innerHTML = "";
+        if (reviewLines) sortByCategory(reviewLines, "text");
         const lines = reviewLines || [];
+        let lastCat = null;
         lines.forEach(function (line, idx) {
+          const cat = normalizeCategory(line.category);
+          if (cat !== lastCat) {
+            lastCat = cat;
+            const heading = document.createElement("li");
+            heading.className = "review-cat-heading";
+            heading.textContent = cat || "Uncategorized";
+            heading.setAttribute("aria-hidden", "true");
+            els.reviewList.appendChild(heading);
+          }
           const li = document.createElement("li");
+          li.style.flexWrap = "wrap";
           const span = document.createElement("span");
-          span.textContent = line;
+          span.textContent = line.text;
+          span.style.flex = "1";
+          span.style.minWidth = "100px";
+          const sel = document.createElement("select");
+          sel.style.width = "auto";
+          sel.style.minWidth = "7.5rem";
+          sel.style.fontSize = "0.8rem";
+          sel.style.padding = "0.35rem 0.45rem";
+          fillCategorySelect(sel, line.category || "", "Uncategorized");
+          sel.addEventListener("change", function () {
+            reviewLines[idx].category = normalizeCategory(sel.value);
+            renderReviewList();
+          });
           const rm = document.createElement("button");
           rm.type = "button";
           rm.textContent = "Remove";
@@ -1267,6 +1556,7 @@
             renderReviewList();
           });
           li.appendChild(span);
+          li.appendChild(sel);
           li.appendChild(rm);
           els.reviewList.appendChild(li);
         });
@@ -1276,6 +1566,34 @@
 
       function shopFilterQ() {
         return els.shopFilter.value.trim().toLowerCase();
+      }
+
+      function appendShopGroup(container, items) {
+        sortByCategory(items, "title");
+        const groups = {};
+        const order = INGREDIENT_CATEGORIES.concat([""]);
+        order.forEach(function (c) {
+          groups[c] = [];
+        });
+        items.forEach(function (item) {
+          const c = normalizeCategory(item.category);
+          if (!groups[c]) groups[c] = [];
+          groups[c].push(item);
+        });
+        order.forEach(function (c) {
+          const list = groups[c] || [];
+          if (!list.length) return;
+          const heading = document.createElement("h4");
+          heading.className = "shop-category";
+          heading.textContent = c || "Uncategorized";
+          container.appendChild(heading);
+          const ul = document.createElement("ul");
+          ul.className = "plain-list";
+          list.forEach(function (item) {
+            ul.appendChild(shopRow(item));
+          });
+          container.appendChild(ul);
+        });
       }
 
       function renderShop() {
@@ -1288,12 +1606,8 @@
         });
         els.shopOpen.innerHTML = "";
         els.shopDone.innerHTML = "";
-        open.forEach(function (item) {
-          els.shopOpen.appendChild(shopRow(item));
-        });
-        done.forEach(function (item) {
-          els.shopDone.appendChild(shopRow(item));
-        });
+        appendShopGroup(els.shopOpen, open);
+        appendShopGroup(els.shopDone, done);
         const nOpen = shopItems.filter(function (i) {
           return !i.done;
         }).length;
@@ -1335,7 +1649,8 @@
         body.appendChild(title);
         const meta = document.createElement("div");
         meta.className = "item-meta";
-        meta.textContent = new Date(item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        const dateStr = new Date(item.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        meta.textContent = item.category ? item.category + " · " + dateStr : dateStr;
         body.appendChild(meta);
 
         const actions = document.createElement("div");
@@ -1349,6 +1664,13 @@
           const t = next.trim().slice(0, 200);
           if (!t) return;
           item.title = t;
+          const catPrompt = window.prompt(
+            "Category (" + INGREDIENT_CATEGORIES.join(", ") + ") — leave blank for none",
+            item.category || ""
+          );
+          if (catPrompt !== null) {
+            item.category = normalizeCategory(catPrompt);
+          }
           saveAll();
           renderShop();
         });
@@ -1388,6 +1710,29 @@
       });
 
       els.recipeFilter.addEventListener("input", renderRecipes);
+
+      els.recipeAddIngredient.addEventListener("click", function () {
+        const input = addIngredientRow("", "");
+        input.focus();
+      });
+
+      els.recipePasteIngredients.addEventListener("click", function () {
+        const pasted = window.prompt("Paste ingredients, one per line:");
+        if (pasted === null) return;
+        const lines = linesFromText(pasted);
+        if (!lines.length) return;
+        const existing = readIngredientRows();
+        const onlyBlank =
+          els.recipeIngredientsEditor.querySelectorAll(".ingredient-row").length === 1 &&
+          existing.length === 0;
+        if (onlyBlank) clearIngredientEditor();
+        lines.forEach(function (line) {
+          addIngredientRow(line, "");
+        });
+        if (!els.recipeIngredientsEditor.querySelector(".ingredient-row")) {
+          addIngredientRow("", "");
+        }
+      });
 
       els.recipeHasSteps.addEventListener("change", syncStepsVisibility);
 
@@ -1429,9 +1774,16 @@
       });
 
       els.reviewSave.addEventListener("click", function () {
-        const lines = reviewLines || [];
-        shopItems = lines.map(function (title) {
-          return { id: uid(), title: title, done: false, createdAt: Date.now() };
+        const lines = (reviewLines || []).slice();
+        sortByCategory(lines, "text");
+        shopItems = lines.map(function (line) {
+          return {
+            id: uid(),
+            title: line.text,
+            category: normalizeCategory(line.category),
+            done: false,
+            createdAt: Date.now(),
+          };
         });
         reviewLines = null;
         saveAll();
@@ -1445,8 +1797,15 @@
         e.preventDefault();
         const title = els.newShopItem.value.trim().slice(0, 200);
         if (!title) return;
-        shopItems.unshift({ id: uid(), title: title, done: false, createdAt: Date.now() });
+        shopItems.unshift({
+          id: uid(),
+          title: title,
+          category: normalizeCategory(els.newShopCategory.value),
+          done: false,
+          createdAt: Date.now(),
+        });
         els.newShopItem.value = "";
+        els.newShopCategory.value = "";
         saveAll();
         renderShop();
       });
@@ -1517,6 +1876,7 @@
       });
 
       loadAll();
+      fillCategorySelect(els.newShopCategory, "", "Category…");
       const initial = getRoute();
       showView(initial);
       if (initial === "shop") els.newShopItem.focus();
